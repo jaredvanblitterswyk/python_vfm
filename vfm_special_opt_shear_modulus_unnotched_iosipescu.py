@@ -5,7 +5,7 @@ Piecewise special optimised virtual fields for unnotched iosipescu test
 
 This script loads in the fields provided in the VFM textbook by Pierron & Grediac
 (see Sec. 13.4) and implements piecewise virtual fields to identify the 
-4 in-plane stiffness parameters (Q11, Q12, Q22, Q66) for an orthotropic composite.
+in-plane shear modulus (Q66) for an orthotropic composite.
 
 The virtual fields are built up using an FE type mesh of linear quadratic elements.
 A similar approach could be implemented using polynomial virtual fields (Sec. 13.3), 
@@ -22,7 +22,7 @@ National Institute of Standards and Technology
 Securities Technology Group (643.10)
 
 Author: Jared Van Blitterswyk (Intl. Assoc.)
-Date last updated: 16 June 2020
+Date last updated: 17 September 2020
 
 """
 #%% Load in packages and define data locations
@@ -156,18 +156,12 @@ xsi2 = 2*Y/H_ele - ele_j*2+1
 # virtual strains
 v0 = np.zeros((num_points,1))
 
-Eps1_elem = 0.5/L_ele*np.column_stack((-(1-xsi2), v0, (1-xsi2), v0, (1+xsi2), v0, -(1+xsi2), v0));
-
-Eps2_elem = 0.5/H_ele*np.column_stack((v0, -(1-xsi1), v0, -(1+xsi1), v0, (1+xsi1), v0, (1-xsi1)));
-
-Eps6_elem = 0.5*np.column_stack((-(1-xsi1)/H_ele, -(1-xsi2)/L_ele, -(1+xsi1)/H_ele, (1-xsi2)/L_ele, (1+xsi1)/H_ele, (1+xsi2)/L_ele, (1-xsi1)/H_ele, -(1+xsi2)/L_ele))
+Eps6_elem = 0.5/L_ele*np.column_stack((-(1-xsi2), (1-xsi2), (1+xsi2), -(1+xsi2)))
 
 # virtual displacements
-u0 = np.zeros((num_points,1));
+u0 = np.zeros((num_points,1))
 
-u1_elem = 0.25*np.column_stack((np.multiply((1-xsi1),(1-xsi2)), u0, np.multiply((1+xsi1),(1-xsi2)), u0, np.multiply((1+xsi1),(1+xsi2)), u0, np.multiply((1-xsi1),(1+xsi2)), u0))
-
-u2_elem = 0.25*np.column_stack((u0, np.multiply((1-xsi1),(1-xsi2)), u0, np.multiply((1+xsi1),(1-xsi2)), u0, np.multiply((1+xsi1),(1+xsi2)), u0, np.multiply((1-xsi1),(1+xsi2))));
+u2_elem = 0.25*np.column_stack((np.multiply((1-xsi1),(1-xsi2)), np.multiply((1+xsi1),(1-xsi2)), np.multiply((1+xsi1),(1+xsi2)), np.multiply((1-xsi1),(1+xsi2))));
 
 # define nodal connectivity for each element
 # number of the first node of the related element for each data point
@@ -187,19 +181,13 @@ n4 = (ele_i-1)*(m+1)+ele_j+1;
 # Hij will be used to compute the Hessian matrix
 
 # Initialize variables
-B11 = np.zeros((1,2*num_nodes))
-B22 = np.zeros((1,2*num_nodes))
-B12 = np.zeros((1,2*num_nodes))
-B66 = np.zeros((1,2*num_nodes))
+B66 = np.zeros((1,num_nodes))
 #
-H11 = np.zeros((2*num_nodes,2*num_nodes))
-H22 = np.zeros((2*num_nodes,2*num_nodes))
-H12 = np.zeros((2*num_nodes,2*num_nodes))
-H66 = np.zeros((2*num_nodes,2*num_nodes))
+H66 = np.zeros((num_nodes,num_nodes))
     
 # Matrix of dofs affected by each data point
 # [node1_dof1, node1_dof2, node2_dof1, node2_dof2, node3_dof1, node3_dof2, node4_dof1, node4_dof2]
-assemble = np.column_stack((n1*2-1, n1*2, n2*2-1, n2*2, n3*2-1, n3*2, n4*2-1, n4*2)) # 2 dofs for each node
+assemble = np.column_stack((n1, n2, n3, n4)) # 2 dofs for each node
 
 r,c = assemble.shape
 #print('Size of assemble: ('+str(r)+', '+str(c)+')')
@@ -209,69 +197,46 @@ assemble = assemble.astype(int)
      
 assemble_py_ind = assemble - 1 # convert to python index
 temp, n_dof_ele = assemble_py_ind[0,:].shape
-for i in range(0,2*num_nodes):
+for i in range(0,num_nodes):
     dof = i
     point_list = np.where(assemble_py_ind == dof)[0]
     # pre-allocate memory
-    b11 = np.zeros((len(point_list),1))
-    b22 = np.zeros((len(point_list),1))
-    b12 = np.zeros((len(point_list),1))
     b66 = np.zeros((len(point_list),1))
     
-    h11 = np.zeros((2*num_nodes,2*num_nodes,len(point_list)))
-    h22 = np.zeros((2*num_nodes,2*num_nodes,len(point_list)))
-    h12 = np.zeros((2*num_nodes,2*num_nodes,len(point_list)))
-    h66 = np.zeros((2*num_nodes,2*num_nodes,len(point_list)))
+    h66 = np.zeros((num_nodes,num_nodes,len(point_list)))
     
     count = 0
     for p in point_list:
         # find index of degree of freedom for that point
         ind_dof = np.where(assemble_py_ind[p][:] == dof)[1][0]
-        b11[count,0] = Eps1_elem[p,ind_dof]*e11[p]*L*H/num_points
-        b22[count,0] = Eps2_elem[p,ind_dof]*e22[p]*L*H/num_points
-        b12[count,0] = (Eps1_elem[p,ind_dof]*e22[p]+Eps2_elem[p,ind_dof]*e11[p])*L*H/num_points
         b66[count,0] = Eps6_elem[p,ind_dof]*g12[p]*L*H/num_points
         
         for j in range(0,n_dof_ele):
             ind_dof2 = assemble_py_ind[p,j]              
-            h11[dof,ind_dof2,count] = Eps1_elem[p,ind_dof]*Eps1_elem[p,j]
-            h22[dof,ind_dof2,count] = Eps2_elem[p,ind_dof]*Eps2_elem[p,j]
-            h12[dof,ind_dof2,count] = Eps1_elem[p,ind_dof]*Eps2_elem[p,j]
             h66[dof,ind_dof2,count] = Eps6_elem[p,ind_dof]*Eps6_elem[p,j]
             
         count += 1
     # sum all contributions in time
-    h11 = np.sum(h11,axis = 2)
-    h22 = np.sum(h22,axis = 2)
-    h12 = np.sum(h12,axis = 2)
     h66 = np.sum(h66,axis = 2)
     
     # assign to main vector
-    B11[0,i] = np.sum(b11)
-    B22[0,i] = np.sum(b22)
-    B12[0,i] = np.sum(b12)
     B66[0,i] = np.sum(b66)
     
     # assign to main matrix
-    H11[i,:] = h11[i,:]
-    H22[i,:] = h22[i,:] 
-    H12[i,:] = h12[i,:] 
     H66[i,:] = h66[i,:]  
     
 # -----------------------------------------------------------------------------
 # Define Virtual Boundary Conditions
-num_cond = 4*m+3
-Aconst = np.zeros((num_cond, 2*num_nodes)) # there are 4*(n+1) boundary conditions - 2 dofs per node
+num_cond = m*n+m+1
+Aconst = np.zeros((num_cond, num_nodes)) # there are 4*(n+1) boundary conditions - 2 dofs per node
 
-for j in range(0,2*(m+1)): # set u1 = 0 at y = 0: (n+1) conditions
+for j in range(0,(m+1)): # set u1 = 0 at y = 0: (n+1) conditions
     Aconst[j, j] = 1
-     
-for j in range(0,(m+1)): # set u1 = 0 at y=H: n+1 conditions
-    Aconst[j + 2*(m+1), 2*(num_nodes-n+j)] = 1
     
-for j in range(0,m): # u2(y=H) = const. for n = 2, m = 3: u2(8) - u2(4) = 0: n conditions
-    Aconst[j + 3*(m+1), 2*(num_nodes-m+j)-1] = 1
-    Aconst[j + 3*(m+1), 2*(num_nodes-m+j)+1] = -1 
+for i in range(1,(n+1)):
+    for j in range(0,m): 
+        Aconst[i*(n-1)+(j+1), i*(m+1)+j] = 1
+        Aconst[i*(n-1)+(j+1), i*(m+1)+(j+1)] = -1 
     
 # debugging - print table of dofs and constraints applied
 #dof_label = np.linspace(1,2*num_nodes,2*num_nodes)
@@ -286,25 +251,18 @@ for j in range(0,m): # u2(y=H) = const. for n = 2, m = 3: u2(8) - u2(4) = 0: n c
 # -----------------------------------------------------------------------------    
 # Construct Z vector of zeros except for conditions of speciality
 # Za is the vector used to find the virtual field to identify Q11
-Za = np.zeros((1,2*num_nodes+num_cond));
-Zb=Za; Zc=Za; Zd=Za;
+Z = np.zeros((1,num_nodes+num_cond));
 
-spec_cond1 = np.matrix([1,0,0,0]) # speciality condition for Q11
-spec_cond2 = np.matrix([0,1,0,0]) # speciality condition for Q22
-spec_cond3 = np.matrix([0,0,1,0]) # speciality condition for Q12
-spec_cond4 = np.matrix([0,0,0,1]) # speciality condition for Q66
+spec_cond = np.matrix([1]) # speciality condition for Q66
 
 # append to original Z vector of zeros
-Za = np.hstack((Za,spec_cond1))
-Zb = np.hstack((Zb,spec_cond2))
-Zc = np.hstack((Zc,spec_cond3))
-Zd = np.hstack((Zd,spec_cond4))
+Z = np.hstack((Z,spec_cond))
 
 # -----------------------------------------------------------------------------
 # Build up the A matrix containing all constraints:
 # boundary conditions and speciality and the B matrix containing zeros
 
-A = np.row_stack((Aconst,B11,B22,B12,B66)) # obtained from the constraint equation
+A = np.row_stack((Aconst,B66)) # obtained from the constraint equation
 
 rows,cols = A.shape
 B = np.zeros([rows,rows])
@@ -312,19 +270,19 @@ B = np.zeros([rows,rows])
 # -----------------------------------------------------------------------------
 # solve the system - optimization
 # -----------------------------------------------------------------------------
-Q = np.matrix([1, 1, 1, 1]) # first guess for Q matrix
+Q = 1 # first guess for Q matrix
 
 n_iter = 20; # maximum number of iterations
 delta_lim = 0.001; # tollerance
 delta = 10;
 
 i = 1; # set counter
-Qold = np.matrix([1,1,1,1]); # store value of Q for previous iteration
+Qold = 1; # store value of Q for previous iteration
 
 while i < n_iter and delta > delta_lim:
 
     # Calculate Hessian matrix 
-    Hess =(L*H/num_points)**2*((Q[0,0]**2+Q[0,2]**2)*H11 + (Q[0,1]**2+Q[0,2]**2)*H22 + Q[0,3]**2*H66 + 2*(Q[0,0] + Q[0,1])*Q[0,2]*H12)
+    Hess = (L*H/num_points)**2*(Q**2*H66)
     
     #NOTE: to avoid the numerical "Warning: Matrix is close to singular or
     #      badly scaled" matrix Opt can be scaled with the parameter corr.
@@ -352,68 +310,36 @@ while i < n_iter and delta > delta_lim:
     #    print(*line)
     
     # Vector containing the polynomial coefficients and the Lagrange multipliers
-    Ya = inv(OptM)*np.transpose(Za) # for Q11
-    Yb = inv(OptM)*np.transpose(Zb) # for Q22
-    Yc = inv(OptM)*np.transpose(Zc) # for Q12
-    Yd = inv(OptM)*np.transpose(Zd) # for Q66
+    Yd = inv(OptM)*np.transpose(Z) # for Q66
     
     # Remove the Lagrange multipliers from the Y vectors because they are of no interest
-    Ya = Ya[0:2*num_nodes]
-    Yb = Yb[0:2*num_nodes]
-    Yc = Yc[0:2*num_nodes]
-    Yd = Yd[0:2*num_nodes]
+    Yd = Yd[0:num_nodes]
     
-    # Calculating Q11 from the first optimized virtual field
-    Q11 = (Ya[2*num_nodes-1]*F/t)
-    # Calculating Q22 from the second optimized virtual field
-    Q22 = (Yb[2*num_nodes-1]*F/t)
-    # Calculating Q12 from the third optimized virtual field
-    Q12 = (Yc[2*num_nodes-1]*F/t)
     # Calculating Q66 from the fourth optimized virtual field
-    Q66 = (Yd[2*num_nodes-1]*F/t)
+    Q = float(Yd[num_nodes-1]*F/t)
     
-    #print('Q11:'+str(Q11))
-    #print('Q22:'+str(Q22))
-    #print('Q12:'+str(Q12))
     #print('Q66:'+str(Q66))
     
-    Q[0,0] = Q11
-    Q[0,1] = Q22
-    Q[0,2] = Q12
-    Q[0,3] = Q66
-    
-    delta=np.sum(np.multiply((Qold-Q),(Qold-Q))/(np.multiply(Q,Q)))
+    delta=(Qold-Q)**2/Q**2
     #print(delta)
     i=i+1
-    Qold[0,0] = Q11
-    Qold[0,1] = Q22
-    Qold[0,2] = Q12
-    Qold[0,3] = Q66
+    Qold = Q
     
 # -----------------------------------------------------------------------------
 # Final result
 # -----------------------------------------------------------------------------
-Hess = (L*H/num_points)**2*((Q[0,0]**2+Q[0,2]**2)*H11 + (Q[0,1]**2+Q[0,2]**2)*H22 + Q[0,3]**2*H66 + 2*(Q[0,0] + Q[0,1])*Q[0,2]*H12)    
+Hess = (L*H/num_points)**2*(Q**2*H66)    
 
 # calculate eta parameters (sensitivity to noise) 
-eta11 = np.sqrt(float(np.dot(np.transpose(Ya)*Hess,Ya)))
-eta22 = np.sqrt(float(np.dot(np.transpose(Yb)*Hess,Yb)))
-eta12 = np.sqrt(float(np.dot(np.transpose(Yc)*Hess,Yc)))
 eta66 = np.sqrt(float(np.dot(np.transpose(Yd)*Hess,Yd)))   
 
 # print results
 print('----------------------------------------------------------------------')    
 print('Identified stiffness paramters:')    
-print('Q11: '+str(round(Q[0,0]/1e03,2))+ ' GPa')
-print('Q22: '+str(round(Q[0,1]/1e03,2))+ ' GPa')
-print('Q12: '+str(round(Q[0,2]/1e03,2))+ ' GPa')
-print('Q66: '+str(round(Q[0,3]/1e03,2))+ ' GPa')
+print('Q66: '+str(round(Q/1e03,2))+ ' GPa')
 print('----------------------------------------------------------------------')
 print('Normalized sensitivity to strain noise (eta_ij/Q_ij):')    
-print('eta11/Q11: '+str(round(eta11/Q[0,0],2)))
-print('eta22/Q22: '+str(round(eta22/Q[0,1],2)))
-print('eta12/Q12: '+str(round(eta12/Q[0,2],2)))
-print('eta66/Q66: '+str(round(eta66/Q[0,3],2)))
+print('eta66/Q66: '+str(round(eta66/Q,2)))
 print('----------------------------------------------------------------------')
 print('Nodes: '+str(num_nodes)+', Elements: '+ str(num_ele))
 
@@ -426,99 +352,31 @@ print('Nodes: '+str(num_nodes)+', Elements: '+ str(num_ele))
 # Eps6: virtual xy strain fields (a, ... d) for (Q11, ... Q66)
 
 # pre-allocate memory
-u1va = np.zeros((num_points,1)); u1vb = np.zeros((num_points,1))
-u1vc = np.zeros((num_points,1)); u1vd = np.zeros((num_points,1))
-
-u2va = np.zeros((num_points,1)); u2vb = np.zeros((num_points,1))
-u2vc = np.zeros((num_points,1)); u2vd = np.zeros((num_points,1))
-
-eps1va = np.zeros((num_points,1)); eps1vb = np.zeros((num_points,1))
-eps1vc = np.zeros((num_points,1)); eps1vd = np.zeros((num_points,1))
-
-eps2va = np.zeros((num_points,1)); eps2vb = np.zeros((num_points,1))
-eps2vc = np.zeros((num_points,1)); eps2vd = np.zeros((num_points,1))
-
-eps6va = np.zeros((num_points,1)); eps6vb = np.zeros((num_points,1))
-eps6vc = np.zeros((num_points,1)); eps6vd = np.zeros((num_points,1))
+u1vd = np.zeros((num_points,1))
+u2vd = np.zeros((num_points,1))
+eps6vd = np.zeros((num_points,1))
 
 for k in range(0,num_points):
     # degrees of freedom associated with point k
     assemble_k = assemble_py_ind[k,:]
     # define zero vector where contribution at relevant dofs will be stored for each point
-    var_dofs_k = np.zeros((1,2*num_nodes)) 
-    
-    # Virtual displacement fields, 1 component
-    var_dofs_k[0,assemble_k] = u1_elem[k,:]
-        
-    u1va[k] = np.dot(var_dofs_k,Ya) # For Q11
-    u1vb[k] = np.dot(var_dofs_k,Yb) # For Q22
-    u1vc[k] = np.dot(var_dofs_k,Yc) # For Q12
-    u1vd[k] = np.dot(var_dofs_k,Yd) # For Q66
-    
-    var_dofs_k = np.zeros((1,2*num_nodes)) # reset before next variable
+    var_dofs_k = np.zeros((1,num_nodes)) 
     
     # Virtual displacement fields, 2 component
     var_dofs_k[0,assemble_k] = u2_elem[k,:]
     
-    u2va[k] = np.dot(var_dofs_k,Ya) # For Q11
-    u2vb[k] = np.dot(var_dofs_k,Yb) # For Q22
-    u2vc[k] = np.dot(var_dofs_k,Yc) # For Q12
     u2vd[k] = np.dot(var_dofs_k,Yd) # For Q66
     
-    var_dofs_k = np.zeros((1,2*num_nodes)) # reset before next variable
-    
-    # Virtual strain fields, 1 component
-    var_dofs_k[0,assemble_k] = Eps1_elem[k,:]
-    
-    eps1va[k] = np.dot(var_dofs_k,Ya) # For Q11
-    eps1vb[k] = np.dot(var_dofs_k,Yb) # For Q22
-    eps1vc[k] = np.dot(var_dofs_k,Yc) # For Q12
-    eps1vd[k] = np.dot(var_dofs_k,Yd) # For Q66
-    
-    var_dofs_k = np.zeros((1,2*num_nodes)) # reset before next variable
-    
-    # Virtual strain fields, 2 component
-    var_dofs_k[0,assemble_k] = Eps2_elem[k,:]
-    
-    eps2va[k] = np.dot(var_dofs_k,Ya) # For Q11
-    eps2vb[k] = np.dot(var_dofs_k,Yb) # For Q22
-    eps2vc[k] = np.dot(var_dofs_k,Yc) # For Q12
-    eps2vd[k] = np.dot(var_dofs_k,Yd) # For Q66
-    
-    var_dofs_k = np.zeros((1,2*num_nodes)) # reset before next variable
-    
+    var_dofs_k = np.zeros((1,num_nodes)) # reset before next variable
+        
     # Virtual strain fields, 6 component
     var_dofs_k[0,assemble_k] = Eps6_elem[k,:]
     
-    eps6va[k] = np.dot(var_dofs_k,Ya) # For Q11
-    eps6vb[k] = np.dot(var_dofs_k,Yb) # For Q22
-    eps6vc[k] = np.dot(var_dofs_k,Yc) # For Q12
     eps6vd[k] = np.dot(var_dofs_k,Yd) # For Q66
 
 # Reshape data into matrix form
-u1va = np.reshape(u1va,(ny,nx),-1)
-u1vb = np.reshape(u1vb,(ny,nx),-1)
-u1vc = np.reshape(u1vc,(ny,nx),-1)
 u1vd = np.reshape(u1vd,(ny,nx),-1)
-
-u2va = np.reshape(u2va,(ny,nx),-1)
-u2vb = np.reshape(u2vb,(ny,nx),-1)
-u2vc = np.reshape(u2vc,(ny,nx),-1)
 u2vd = np.reshape(u2vd,(ny,nx),-1)
-
-eps1va = np.reshape(eps1va,(ny,nx),-1)
-eps1vb = np.reshape(eps1vb,(ny,nx),-1)
-eps1vc = np.reshape(eps1vc,(ny,nx),-1)
-eps1vd = np.reshape(eps1vd,(ny,nx),-1)
-
-eps2va = np.reshape(eps2va,(ny,nx),-1)
-eps2vb = np.reshape(eps2vb,(ny,nx),-1)
-eps2vc = np.reshape(eps2vc,(ny,nx),-1)
-eps2vd = np.reshape(eps2vd,(ny,nx),-1)
-
-eps6va = np.reshape(eps6va,(ny,nx),-1)
-eps6vb = np.reshape(eps6vb,(ny,nx),-1)
-eps6vc = np.reshape(eps6vc,(ny,nx),-1)
 eps6vd = np.reshape(eps6vd,(ny,nx),-1)
 
 #%% Plot fields (virtual and mechanical)
@@ -596,22 +454,10 @@ def plotVF_strain(X,Y,VF1,VF2,VF3,num,path,file):
 results_dir = 'results_pw_optim_vfm/'
 path_results = os.path.join(path_data, results_dir)
 
-fname = 'vfm_tutorial_pw_optim_vfs_ustar_a'
-plotVF_disp(X,Y,u1va,u2va,1,path_results,fname)
-fname = 'vfm_tutorial_pw_optim_vfs_epsstar_a'
-plotVF_strain(X,Y,eps1va,eps2va,eps6va,1,path_results,fname)
-fname = 'vfm_tutorial_pw_optim_vfs_ustar_b'
-plotVF_disp(X,Y,u1vb,u2vb,2,path_results,fname)
-fname = 'vfm_tutorial_pw_optim_vfs_epsstar_b'
-plotVF_strain(X,Y,eps1vb,eps2vb,eps6vb,2,path_results,fname)
-fname = 'vfm_tutorial_pw_optim_vfs_ustar_c'
-plotVF_disp(X,Y,u1vc,u2vc,3,path_results,fname)
-fname = 'vfm_tutorial_pw_optim_vfs_epsstar_c'
-plotVF_strain(X,Y,eps1vc,eps2vc,eps6vc,3,path_results,fname)
 fname = 'vfm_tutorial_pw_optim_vfs_ustar_d'
 plotVF_disp(X,Y,u1vd,u2vd,4,path_results,fname)
 fname = 'vfm_tutorial_pw_optim_vfs_epsstar_d'
-plotVF_strain(X,Y,eps1vd,eps2vd,eps6vd,4,path_results,fname)
+plot_single_var_contour(X,Y,eps6vd,'$\epsilon_{6}^{*}$ (m/m)',path_results,fname)
 
 fname = 'vfm_tutorial_exx'
 plot_single_var_contour(X,Y,e_xx,'$\epsilon_{xx}$ (m/m)',path_results,fname)

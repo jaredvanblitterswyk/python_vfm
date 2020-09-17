@@ -15,19 +15,19 @@ from numpy.linalg import inv
 
 # read in and plot results from ansys simulation
 base_dir = 'C:/Users/Jared/Documents/NIST-PREP/'
-results_dir = 'simulation/unnotched_iosipescu_cfrp/'
-path_results = os.path.join(base_dir, results_dir)
+data_dir = 'simulation/unnotched_iosipescu_cfrp/'
+path_data = os.path.join(base_dir, data_dir)
 
 filename1 = 'vfm_tutorial_exx.csv'
 filename2 = 'vfm_tutorial_eyy.csv'
 filename3 = 'vfm_tutorial_gxy.csv'
 filename4 = 'vfm_tutorial_X.csv'
 filename5 = 'vfm_tutorial_Y.csv'
-file1 = path_results+filename1
-file2 = path_results+filename2
-file3 = path_results+filename3
-file4 = path_results+filename4
-file5 = path_results+filename5
+file1 = path_data+filename1
+file2 = path_data+filename2
+file3 = path_data+filename3
+file4 = path_data+filename4
+file5 = path_data+filename5
 
 #%% Reference stiffness parameters
 Q11 = 41
@@ -57,16 +57,22 @@ X = X/1000
 Y = Y/1000
 
 ny,nx = X.shape
+'''
 # --------------------------------------------------------------
 print('Average shear strain: '+ str(np.mean(np.mean(g_xy))) + ' (m/m)')
 print('Average x strain: '+ str(np.mean(np.mean(e_xx))) + ' (m/m)')
 print('Average y strain: '+ str(np.mean(np.mean(e_yy))) + ' (m/m)')
+'''
 #%% Identify stiffness parameters using the virtual fields method
 N = nx*ny
 F = 702 # from MATLAB data set provided with VFM textbook
 t = 0.0023
 L = 0.03
 w = 0.02
+
+X = X*1000
+Y = Y*1000
+L = L*1000
 
 u1s_1 = X*(L-X)*Y
 u2s_1 = -0.5*L*X*X + 1/3*X*X*X
@@ -133,10 +139,10 @@ Q = inv(A)*np.transpose(B)
 Q = np.asarray(Q)
 print('-----------------------------------------')
 print('Identified stiffness paramters:')
-print('Q_{11}: '+str(Q[0][0]/1e09)+' (GPa)')
-print('Q_{22}: '+str(Q[2][0]/1e09)+' (GPa)')
-print('Q_{12}: '+str(Q[1][0]/1e09)+' (GPa)')
-print('Q_{66}: '+str(Q[3][0]/1e09)+' (GPa)')
+print('Q_{11}: '+str(round(Q[0][0]/1e09,2))+' (GPa)')
+print('Q_{22}: '+str(round(Q[2][0]/1e09,2))+' (GPa)')
+print('Q_{12}: '+str(round(Q[1][0]/1e09,2))+' (GPa)')
+print('Q_{66}: '+str(round(Q[3][0]/1e09,2))+' (GPa)')
 
 eQ11 = (round(Q[0][0]/1e09,2)-Q11)/Q11*100
 eQ12 = (round(Q[1][0]/1e09,2)-Q12)/Q12*100
@@ -153,61 +159,8 @@ print('Q_{66}: '+str(round(eQ66,1))+' (%)')
 
 # plot virtual fields
 
-# VF1
-def plot_pair_fields(X,Y,VF1,VF2,title_string1,title_string2):
-    fig = plt.figure()
-    ax1 = plt.subplot(2, 1, 1)
-    ax1 = plt.pcolor(X,Y,VF1)
-    plt.title(title_string1)
-    plt.xlabel('x (mm)')
-    plt.ylabel('y (mm)')
-    plt.axis('scaled')
-    cbaxes = fig.add_axes([0.75, 0.55, 0.03, 0.4])  # [left bottom width height]
-    cb = plt.colorbar(ax1, cax = cbaxes) 
-    
-    ax2 = plt.subplot(2, 1, 2)
-    ax2 = plt.pcolor(X,Y,VF2)
-    plt.title(title_string2)
-    plt.xlabel('x (mm)')
-    plt.ylabel('y (mm)')
-    plt.axis('scaled')
-    plt.tight_layout()
-    cbaxes = fig.add_axes([0.75, 0.05, 0.03, 0.4])  # [left bottom width height]
-    cb = plt.colorbar(ax2, cax = cbaxes) 
-       
-def plotVF_strain(X,Y,VF1,VF2,VF3,num):
-    fig = plt.figure()
-    ax1 = plt.subplot(3, 1, 1)
-    ax1 = plt.pcolor(X,Y,VF1)
-    plt.title('$\epsilon_1^*$'+'$^{('+str(num)+')}$')
-    plt.xlabel('x (mm)')
-    plt.ylabel('y (mm)')
-    plt.axis('scaled')
-    cbaxes = fig.add_axes([0.75, 0.7, 0.03, 0.2])  # [left bottom width height]
-    cb = plt.colorbar(ax1, cax = cbaxes) 
-    
-    ax2 = plt.subplot(3, 1, 2)
-    ax2 = plt.pcolor(X,Y,VF2)
-    plt.title('$\epsilon_2^*$'+'$^{('+str(num)+')}$')
-    plt.xlabel('x (mm)')
-    plt.ylabel('y (mm)')
-    plt.axis('scaled')
-    plt.tight_layout()
-    cbaxes = fig.add_axes([0.75, 0.35, 0.03, 0.2])  # [left bottom width height]
-    cb = plt.colorbar(ax2, cax = cbaxes)    
-    
-    ax3 = plt.subplot(3, 1, 3)
-    ax3 = plt.pcolor(X,Y,VF3)
-    plt.title('$\epsilon_6^*$'+'$^{('+str(num)+')}$')
-    plt.xlabel('x (mm)')
-    plt.ylabel('y (mm)')
-    plt.axis('scaled')
-    plt.tight_layout()
-    cbaxes = fig.add_axes([0.75, 0.05, 0.03, 0.2])  # [left bottom width height]
-    cb = plt.colorbar(ax3, cax = cbaxes)     
-
-def plot_single_var_contour(X,Y,C,title_string):
-    plt.figure()
+def plot_single_var_contour(X,Y,C,title_string,path,file):
+    plt.figure(figsize=(5,3))
     f = plt.contourf(X,Y,C, 40, alpha=0.7)
     plt.colorbar()
     plt.xlabel('x (mm)')
@@ -215,27 +168,89 @@ def plot_single_var_contour(X,Y,C,title_string):
     plt.title(title_string)
     plt.axis('scaled')
     plt.contour(X,Y,C, 40, alpha = 1.0, linewidths = 0.4)
-    plt.clim(np.min(np.min(C)),np.max(np.max(C)))
+    plt.clim(0.5*np.min(np.min(C)),0.5*np.max(np.max(C)))
     plt.tight_layout()
+    plt.savefig(path+file, dpi=None, facecolor='w', edgecolor='w')
+    
+def plotVF_disp(X,Y,VF1,VF2,num,path,file):
+    fig = plt.figure(figsize=(10,3))
+    ax1 = plt.subplot(1, 2, 1)
+    ax1 = plt.contourf(X,Y,VF1,40, cmap = 'viridis', alpha = 0.7)
+    plt.colorbar()
+    ax1s = plt.contour(X,Y,VF1, 40, alpha = 1.0, linewidths = 0.4)
+    plt.title('$u_1^*$'+'$^{('+str(num)+')}$')
+    plt.xlabel('x (mm)')
+    plt.ylabel('y (mm)')
+    plt.axis('scaled')
+    plt.clim(0.5*np.min(np.min(VF1)),0.5*np.max(np.max(VF1)))
+    
+    ax2 = plt.subplot(1, 2, 2)
+    ax2 = plt.contourf(X,Y,VF2,40, cmap = 'viridis', alpha = 0.7)
+    plt.colorbar()
+    ax2s = plt.contour(X,Y,VF2, 40, alpha = 1.0, linewidths = 0.4)
+    plt.title('$u_2^*$'+'$^{('+str(num)+')}$')
+    plt.xlabel('x (mm)')
+    plt.ylabel('y (mm)')
+    plt.axis('scaled')
+    plt.clim(0.5*np.min(np.min(VF2)),0.5*np.max(np.max(VF2)))
+    plt.savefig(path+file, dpi=None, facecolor='w', edgecolor='w')
+      
+def plotVF_strain(X,Y,VF1,VF2,VF3,num,path,file):
+    fig = plt.figure(figsize=(15,3))
+    
+    ax1 = plt.subplot(1, 3, 1)
+    ax1 = plt.contourf(X,Y,VF1,40, cmap = 'viridis', alpha = 0.7)
+    plt.colorbar()
+    ax1s = plt.contour(X,Y,VF1,40, alpha = 1.0, linewidths = 0.4)
+    plt.title('$\epsilon_1^*$'+'$^{('+str(num)+')}$')
+    plt.xlabel('x (mm)')
+    plt.ylabel('y (mm)')
+    plt.axis('scaled')
+    
+    ax2 = plt.subplot(1, 3, 2)
+    ax2 = plt.contourf(X,Y,VF2,40, cmap = 'viridis', alpha = 0.7)
+    plt.colorbar()
+    ax1s = plt.contour(X,Y,VF2,40, alpha = 1.0, linewidths = 0.4)
+    plt.title('$\epsilon_2^*$'+'$^{('+str(num)+')}$')
+    plt.xlabel('x (mm)')
+    plt.ylabel('y (mm)')
+    plt.axis('scaled')
+    
+    ax3 = plt.subplot(1, 3, 3)
+    ax3 = plt.contourf(X,Y,VF3,40, cmap = 'viridis', alpha = 0.7)
+    plt.colorbar()
+    ax1s = plt.contour(X,Y,VF3, 40, alpha = 1.0, linewidths = 0.4)
+    plt.title('$\epsilon_6^*$'+'$^{('+str(num)+')}$')
+    plt.xlabel('x (mm)')
+    plt.ylabel('y (mm)')
+    plt.axis('scaled')
+    plt.savefig(path+file, dpi=None, facecolor='w', edgecolor='w')
+    
+    
+results_dir = 'results_manual_vfm/'
+path_results = os.path.join(path_data, results_dir)
+
+fname = 'vfm_tutorial_manual_vfs_ustar_a'
+plotVF_disp(X,Y,u1s_1,u2s_1,1,path_results,fname)
+fname = 'vfm_tutorial_manual_vfs_epsstar_a'
+plotVF_strain(X,Y,eps1s_1,eps2s_1,eps6s_1,1,path_results,fname)
+fname = 'vfm_tutorial_manual_vfs_ustar_b'
+plotVF_disp(X,Y,u1s_2,u2s_2,2,path_results,fname)
+fname = 'vfm_tutorial_manual_vfs_epsstar_b'
+plotVF_strain(X,Y,eps1s_2,eps2s_2,eps6s_2,2,path_results,fname)
+fname = 'vfm_tutorial_manual_vfs_ustar_c'
+plotVF_disp(X,Y,u1s_3,u2s_3,3,path_results,fname)
+fname = 'vfm_tutorial_manual_vfs_epsstar_c'
+plotVF_strain(X,Y,eps1s_3,eps2s_3,eps6s_3,3,path_results,fname)
+fname = 'vfm_tutorial_manual_vfs_ustar_d'
+plotVF_disp(X,Y,u1s_4,u2s_4,4,path_results,fname)
+fname = 'vfm_tutorial_manual_vfs_epsstar_d'
+plotVF_strain(X,Y,eps1s_4,eps2s_4,eps6s_4,4,path_results,fname)    
 
 '''    
-plot_pair_fields(X,Y,u1s_1,u2s_1,'$u_1^*$ (1)','$u_2^*$ (1)')
-plot_pair_fields(X,Y,u1s_2,u2s_2,'$u_1^*$ (2)','$u_2^*$ (2)')
-plot_pair_fields(X,Y,u1s_3,u2s_3,'$u_1^*$ (3)','$u_2^*$ (3)')
-plot_pair_fields(X,Y,u1s_4,u2s_4,'$u_1^*$ (4)','$u_2^*$ (4)')
-'''
-plot_pair_fields(X,Y,eps1s_1*e_xx,eps1s_1*e_yy,'$\epsilon_1^*(1)\epsilon_{xx}$','$\epsilon_1^*(1)\epsilon_{yy}$')
-plot_pair_fields(X,Y,eps1s_3*e_xx,eps1s_3*e_yy,'$\epsilon_1^*(3)\epsilon_{xx}$','$\epsilon_1^*(3)\epsilon_{yy}$')
-plot_single_var_contour(X,Y,eps6s_4*g_xy,'$\epsilon_6^*\gamma_{xy}$')
-
-plotVF_strain(X,Y,eps1s_1,eps2s_1,eps6s_1,1)
-plotVF_strain(X,Y,eps1s_2,eps2s_2,eps6s_2,2)
-plotVF_strain(X,Y,eps1s_3,eps2s_3,eps6s_3,3)
-plotVF_strain(X,Y,eps1s_4,eps2s_4,eps6s_4,4)
-
 # plot strain maps
 
 plot_single_var_contour(X,Y,e_xx,'$\epsilon_{xx}$ (m/m)')
 plot_single_var_contour(X,Y,e_yy,'$\epsilon_{yy}$ (m/m)')
 plot_single_var_contour(X,Y,g_xy,'$\gamma_{xy}$ (m/m)')
-
+'''
