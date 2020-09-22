@@ -33,7 +33,7 @@ import matplotlib.pyplot as plt
 import os
 from scipy.interpolate import interp2d, griddata
 from numpy.linalg import inv
-from f_piecewise_optimized_vfm_off_axis_tension import pw_opt_vfs_offaxis
+#from f_piecewise_optimized_vfm_off_axis_tension import pw_opt_vfs_offaxis
 
 # print header
 print('======================================================================')
